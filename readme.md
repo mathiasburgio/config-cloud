@@ -93,9 +93,9 @@ sudo mysql_secure_installation         # Configurar seguridad
 
 ### 6.1 Agregar clave GPG y repositorio
 ```bash
-curl -fsSL https://pgp.mongodb.com/server-6.0.asc | sudo tee /etc/apt/trusted.gpg.d/mongodb-server-6.0.asc
-echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-sudo apt update
+curl -fsSL https://pgp.mongodb.com/server-6.0.asc | sudo tee /etc/apt/trusted.gpg.d/mongodb-server-6.0.asc    #importamos la clave GPG para verificar autenticidad del los paquetes
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list                        #agregamos repositorio de mongoDB
+sudo apt update             #actualizamos listado de repositorios
 ```
 
 ### 6.2 Instalar MongoDB
@@ -155,24 +155,30 @@ certbot --version                              # Verificar versión
 
 ## 11. Configurar UFW (Firewall)
 ```bash
-sudo apt install ufw          # Instalar UFW
-sudo ufw allow ssh            # Permitir SSH
-sudo ufw allow http           # Permitir HTTP
-sudo ufw allow https          # Permitir HTTPS
-sudo ufw default deny incoming
+sudo apt install ufw              # Instalar UFW
+sudo ufw allow ssh                # Permitir SSH
+sudo ufw allow http               # Permitir HTTP
+sudo ufw allow https              # Permitir HTTPS
+sudo ufw default deny incoming    # Bloqurea todo el trafico de ingreso (exepto los premitidos previamente)
 sudo ufw default allow outgoing
-sudo ufw enable               # Habilitar Firewall
+sudo ufw enable                   # Habilitar Firewall
 ```
 
 ---
 
-## 12. Instalar Fail2Ban (Protección de fuerza bruta)
+## 12. Instalar Fail2Ban (Protección contra fuerza bruta)
 ```bash
-sudo apt install fail2ban
-sudo vi /etc/fail2ban/jail.local
+sudo apt install fail2ban        #instalamos
+sudo systemctl status fail2ban   #verificamos instalacion
+
 ```
 
 ### Configuración:
+```bash
+sudo vi /etc/fail2ban/jail.local   #editamos/creamos el archivo de configuracion
+```
+--Pegamos el siguiente texto  
+
 ```ini
 [DEFAULT]
 bantime = 600
