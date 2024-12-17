@@ -11,7 +11,7 @@
 Ubuntu es el sistema operativo sobre el cual se ejecuta todo
 
 ### 1.0 Instalar el sistema operativo
-Utilizar el wizard del proveedor de hosting (cloud/VPN).
+Utilizar el wizard del proveedor de hosting (cloud/VPN) e ingresamos por SSH
 
 ### 1.1 Actualizar sistema y paquetes
 ```bash
@@ -32,7 +32,7 @@ systemctl {comando} {servicio}  # Acciones en un servicio (start, enable, etc.)
 
 ---
 
-## 1.B Crear un usuario y asignar permisos
+## 1.2 Crear un usuario y asignar permisos
 
 Importante evitar ejecutar todo como root para mas seguridad
 
@@ -61,7 +61,7 @@ sudo service keyboard-setup restart           # Reiniciar servicio de teclado
 
 ## 3. Instalar cURL
 
-Programa para descargar software desde la consola
+Sirve para descargar software desde la consola
 
 ```bash
 sudo apt install curl    # Instalar cURL
@@ -133,11 +133,14 @@ pm2 --version                     # Verificar versión
 #
 #comandos comunes de pm2
 pm2 list                          # Lista procesos activos
-pm2 start {src_index.js}          # Inicia un archivo Node
-pm2 start {src_index} --name NAME # Inicia proyecto con nombre
+pm2 start {src_index.js}          # Ejecuta un un proyecto Node
+pm2 start {src_index} --name {name} # Ejecuta un proyecto y le asigna un nombre
 pm2 save                          # Guarda configuración al reiniciar
+pm2 {stop|restart|start} {name}   # Ejecuta un cambio de estado
 pm2 monit                         # Monitorea aplicaciones
 pm2 logs {name}                   # Ver logs 
+pm2 logs {name} --err             # Ver logs de error
+pm2 logs {name} --out             # Ver logs de salida (console.log)
 ```
 
 ## 8. Git
@@ -184,9 +187,9 @@ ufw --version                     # Verificamos
 #
 #comandos comunes de ufw
 sudo ufw app list                 # Muestra aplicaciones permitidas/bloqueadas
+sudo ufw {enable|disable|status}  # Cambia el estado del firewall
 sudo ufw status numbered          # Muestra las reglas de firewall
 sudo ufw {allow | deny} ssh       # Permitir/bloquea SSH
-sudo ufw {allow | deny} http      # Permitir/bloquea HTTP
 sudo ufw {allow | deny} 33        # Permitir/bloquea el puerto 33
 #
 #
@@ -205,13 +208,13 @@ sudo ufw default allow outgoing #bloquea todo el trafico saliente
 Proteje contra ataques de fuerza bruta
 
 ```bash
-sudo apt install fail2ban        #instalamos
-sudo systemctl status fail2ban   #verificamos instalacion
+sudo apt install fail2ban        # Instalamos
+sudo systemctl status fail2ban   # Verificamos instalación
 ```
 
 ### 12.1 Configuración:
 ```bash
-sudo vi /etc/fail2ban/jail.local   #editamos/creamos el archivo de configuracion
+sudo vi /etc/fail2ban/jail.local   # Editamos/creamos el archivo de configuración
 ```
 Agregamos el siguiente código
 
@@ -228,8 +231,8 @@ enabled = true    #habilita proteccion a ssh
 
 ### 12.2 Iniciamos el servicio:
 ```bash
-sudo systemctl start fail2ban   #iniciamos el servicio
-sudo systemctl enable fail2ban  #lo asignamos al inicio del sistema
+sudo systemctl start fail2ban   # Iniciamos el servicio
+sudo systemctl enable fail2ban  # Asignamos al inicio del sistema
 ```
 
 ---
