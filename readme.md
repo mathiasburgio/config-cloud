@@ -181,13 +181,13 @@ Agregamos el siguiente código
 
 ```ini
 [DEFAULT]
-bantime = 600
-maxretry = 5
-findtime = 600
-banaction = ufw
+bantime = 300      #tiempo de baneo. 300 = 5 min
+maxretry = 5       #cantidad de intentos fallidos
+findtime = 300     #intervalo de descubrimiento de repitencias. 300 = 5 min
+banaction = ufw    #accion a tomar (ufw = bloquea IP)
 
 [sshd]
-enabled = true
+enabled = true    #habilita proteccion a ssh
 ```
 
 ```bash
@@ -198,7 +198,7 @@ sudo systemctl enable fail2ban  #lo asignamos al inicio del sistema
 ---
 
 ## 13. Cambiar puerto default de SSH
-**Nota:** ufw deberia actualizarse solo en cuanto a la nueva configuración del puerto`.
+**Nota:** ufw deberia actualizarse solo en cuanto a la nueva configuración del puerto.
 
 ```bash
 sudo nano /etc/ssh/sshd_config   # Editar configuración
@@ -207,7 +207,14 @@ sudo systemctl restart ssh       # Reiniciar servicio SSH
 
 ---
 
-## Poner en funcionamiento una aplicación (Mateflix)
+## Poner en funcionamiento una aplicación
+```
+Para este ejemplo vamos a configurar
+appName: mateflix
+domain: mateflix.app
+port: 3000
+```
+
 
 ### 1. Clonar repositorio
 ```bash
