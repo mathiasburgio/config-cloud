@@ -218,7 +218,7 @@ port: 3000
 
 ### 1. Clonar repositorio
 ```bash
-mkdir /www && cd /www
+cd /var/www
 # Reemplazar TOKEN y URL_REPO con tus valores
 git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git
 ```
@@ -239,7 +239,7 @@ pm2 save
 
 ### 4. Configurar Nginx
 ```bash
-sudo nano /etc/nginx/sites-available/mateflix.app
+sudo nano /etc/nginx/sites-available/mateflix.app   #nombre del archivo = dominio
 ```
 
 **Contenido:**
@@ -248,13 +248,15 @@ server {
     listen 80;
     server_name mateflix.app www.mateflix.app;
     location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        client_max_body_size 50M;
+        proxy_pass http://localhost:3000;  #agregar aqui el puerto local
+        proxy_http_version 1.1;                  #para soportar web sockets
+        proxy_set_header Upgrade $http_upgrade;  #para soportar web sockets
+        proxy_set_header Connection 'upgrade';   #para soportar web sockets
+        proxy_set_header Host $host;   #para cuando se trabajan con multiples host / servidores virtuales
+        proxy_cache_bypass $http_upgrade;  #para q las conexiones con websocket no trabajen sobre el cache
+        client_max_body_size 50M;  #tamaño maximo de datos
+
+        # Ajustar los tiempos de espera para evitar timeouts
         proxy_read_timeout 90s;
         proxy_connect_timeout 90s;
         proxy_send_timeout 90s;
@@ -263,10 +265,11 @@ server {
 ```
 
 ```bash
+#creamos el enlace simbolico (acceso directo)
 sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/
-sudo nginx -t            # Verificar configuración
-sudo systemctl restart nginx
-sudo certbot --nginx -d mateflix.app
+sudo nginx -t                     # Verificar configuración
+sudo systemctl restart nginx      # reiniciamos nginx
+sudo certbot --nginx -d mateflix.app # Generamos los certificados (no es estrictamente necesario si trabajamos con cloudflare ya que dicho servicio los provee)
 ```
 
 ---
@@ -275,7 +278,7 @@ sudo certbot --nginx -d mateflix.app
 1. Configurar los **nameservers** hacia Cloudflare.
 2. Agregar registros DNS:
     - Registro `A` para el dominio.
-    - Subdominio:
+    - Registros `cname` para subdominio:
       - Nombre: `www`
       - Valor: Dirección IP de tu servidor
       - TTL: Auto
