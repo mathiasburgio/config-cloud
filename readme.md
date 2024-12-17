@@ -177,7 +177,7 @@ sudo systemctl status fail2ban   #verificamos instalacion
 ```bash
 sudo vi /etc/fail2ban/jail.local   #editamos/creamos el archivo de configuracion
 ```
--- Pegamos el siguiente texto  
+Agregamos el siguiente código
 
 ```ini
 [DEFAULT]
@@ -191,16 +191,92 @@ enabled = true
 ```
 
 ```bash
-sudo systemctl start fail2ban
-sudo systemctl enable fail2ban
+sudo systemctl start fail2ban   #iniciamos el servicio
+sudo systemctl enable fail2ban  #lo asignamos al inicio del sistema
 ```
 
 ---
 
 ## 13. Cambiar puerto default de SSH
+**Nota:** ufw deberia actualizarse solo en cuanto a la nueva configuración del puerto`.
+
 ```bash
 sudo nano /etc/ssh/sshd_config   # Editar configuración
 sudo systemctl restart ssh       # Reiniciar servicio SSH
 ```
 
 ---
+
+## Poner en funcionamiento una aplicación (Mateflix)
+
+### 1. Clonar repositorio
+```bash
+mkdir /www && cd /www
+# Reemplazar TOKEN y URL_REPO con tus valores
+git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git
+```
+
+### 2. Instalar dependencias y configurar entorno
+```bash
+cd mateflix
+npm i
+cp .env_example .env
+nano .env   # Editar variables
+```
+
+### 3. Configurar PM2
+```bash
+pm2 start {src_index} --name mateflix
+pm2 save
+```
+
+### 4. Configurar Nginx
+```bash
+sudo nano /etc/nginx/sites-available/mateflix.app
+```
+
+**Contenido:**
+```nginx
+server {
+    listen 80;
+    server_name mateflix.app www.mateflix.app;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        client_max_body_size 50M;
+        proxy_read_timeout 90s;
+        proxy_connect_timeout 90s;
+        proxy_send_timeout 90s;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/
+sudo nginx -t            # Verificar configuración
+sudo systemctl restart nginx
+sudo certbot --nginx -d mateflix.app
+```
+
+---
+
+## 5. Configurar Cloudflare
+1. Configurar los **nameservers** hacia Cloudflare.
+2. Agregar registros DNS:
+    - Registro `A` para el dominio.
+    - Subdominio:
+      - Nombre: `www`
+      - Valor: Dirección IP de tu servidor
+      - TTL: Auto
+
+3. Activar **SSL/TLS** en modo "Flexible" o "Full".
+4. Configurar reglas de seguridad para proteger el servidor de accesos maliciosos.
+5. Revisar Analytics y verificar tráfico hacia tu servidor.
+
+---
+
+**Servidor configurado y aplicación en funcionamiento.** 🚀
