@@ -339,3 +339,4 @@ sudo certbot --nginx -d mateflix.app # Generamos los certificados (no es estrict
 ---
 
 **Servidor configurado y aplicación en funcionamiento.** 🚀
+Guia escrita por Mathias Burgio
