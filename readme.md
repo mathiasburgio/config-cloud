@@ -177,7 +177,7 @@ sudo systemctl status fail2ban   #verificamos instalacion
 ```bash
 sudo vi /etc/fail2ban/jail.local   #editamos/creamos el archivo de configuracion
 ```
---Pegamos el siguiente texto  
+-- Pegamos el siguiente texto  
 
 ```ini
 [DEFAULT]
