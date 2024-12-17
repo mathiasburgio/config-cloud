@@ -270,7 +270,7 @@ git clone https://github.com/user/repo.git # Para repositorios publicos
 git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git # Para repositorios privados
 
 #ejemplo
-git clone https://ghp_C7Ckv4krVw142Jt9LtT9zhRRtuWQ5cw432xRa:x-ouath-basic@gitbub.com/mathiasburgio/boilerplate.git
+git clone https://<b>ghp_C7Ckv4krVw142Jt9LtT9zhRRtuWQ5cw432xRa</b>:x-ouath-basic@gitbub.com/mathiasburgio/boilerplate.git
 ```
 
 ## 2. Instalar dependencias y configurar entorno
