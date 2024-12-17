@@ -48,13 +48,23 @@ su nodeuser                         # Iniciar sesión con el nuevo usuario
 
 ---
 
-## 2. Configurar teclado
+## 1.3. Configurar teclado
 
 En algunos casos la configuración de distribución de teclado no es la correcta y dificulta el escribir caracteres especiales (símbolos)
 
 ```bash
 sudo dpkg-reconfigure keyboard-configuration  # Ejecutar wizard de configuración
 sudo service keyboard-setup restart           # Reiniciar servicio de teclado
+```
+
+---
+
+## 2. Cambiar puerto default de SSH
+**Nota:** Si se tiene un firewall asegurarse de habilitar el nuevo puerto y bloquear el 22
+
+```bash
+sudo nano /etc/ssh/sshd_config   # Editar configuración
+sudo systemctl restart ssh       # Reiniciar servicio SSH
 ```
 
 ---
@@ -233,16 +243,6 @@ enabled = true    #habilita proteccion a ssh
 ```bash
 sudo systemctl start fail2ban   # Iniciamos el servicio
 sudo systemctl enable fail2ban  # Asignamos al inicio del sistema
-```
-
----
-
-## 13. Cambiar puerto default de SSH
-**Nota:** ufw deberia actualizarse solo en cuanto a la nueva configuración del puerto.
-
-```bash
-sudo nano /etc/ssh/sshd_config   # Editar configuración
-sudo systemctl restart ssh       # Reiniciar servicio SSH
 ```
 
 ---
