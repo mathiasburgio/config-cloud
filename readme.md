@@ -8,8 +8,10 @@
 
 ## 1. Instalar Ubuntu
 
+Ubuntu es el sistema operativo sobre el cual se ejecuta todo
+
 ### 1.0 Instalar el sistema operativo
-- Utilizar el wizard del proveedor de hosting (cloud/VPN).
+Utilizar el wizard del proveedor de hosting (cloud/VPN).
 
 ### 1.1 Actualizar sistema y paquetes
 ```bash
@@ -31,6 +33,9 @@ systemctl {comando} {servicio}  # Acciones en un servicio (start, enable, etc.)
 ---
 
 ## 1.B Crear un usuario y asignar permisos
+
+Importante evitar ejecutar todo como root para mas seguridad
+
 ```bash
 sudo adduser nodeuser               # Crear usuario
 sudo groupadd www-group             # Crear grupo
@@ -44,6 +49,9 @@ su nodeuser                         # Iniciar sesión con el nuevo usuario
 ---
 
 ## 2. Configurar teclado
+
+En algunos casos la configuración de distribución de teclado no es la correcta y dificulta el escribir caracteres especiales (símbolos)
+
 ```bash
 sudo dpkg-reconfigure keyboard-configuration  # Ejecutar wizard de configuración
 sudo service keyboard-setup restart           # Reiniciar servicio de teclado
@@ -52,6 +60,9 @@ sudo service keyboard-setup restart           # Reiniciar servicio de teclado
 ---
 
 ## 3. Instalar cURL
+
+Programa para descargar software desde la consola
+
 ```bash
 sudo apt install curl    # Instalar cURL
 curl --version           # Verificar instalación
@@ -59,15 +70,17 @@ curl --version           # Verificar instalación
 
 ---
 
-## 4. Instalar Node.js y npm
+## 4. nvm, node.js y npm
 
-### 4.1 Instalar NVM (Node Version Manager)
+NVM permite gestionar distintas versiones de node
+
+### 4.1 NVM (Node Version Manager)
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
 source ~/.bashrc
 ```
 
-### 4.2 Instalar Node.js
+### 4.2 Node.js
 ```bash
 nvm install 20   # Puedes cambiar "20" por otra versión
 node -v          # Verificar Node.js
@@ -76,7 +89,10 @@ npm -v           # Verificar npm
 
 ---
 
-## 5. Instalar MySQL
+## 5. MySQL
+
+Sistema gestor de base de datos Mysql
+
 ```bash
 sudo apt install mysql-server          # Instalar MySQL
 mysql -V                               # Verificar versión
@@ -87,20 +103,17 @@ sudo mysql_secure_installation         # Configurar seguridad
 
 ---
 
-## 6. Instalar MongoDB
+## 6. MongoDB
 
-**Requisitos:** Utilizar **Ubuntu 20.04** o Docker para evitar problemas.
+Sistema gestor de bases de datos mongo
 
-### 6.1 Agregar clave GPG y repositorio
+**Requisitos:** Utilizar **Ubuntu 20.04** o Docker para evitar problemas, o utilizar otras scripts de instalación.
+
 ```bash
 curl -fsSL https://pgp.mongodb.com/server-6.0.asc | sudo tee /etc/apt/trusted.gpg.d/mongodb-server-6.0.asc    #importamos la clave GPG para verificar autenticidad del los paquetes
 echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list                        #agregamos repositorio de mongoDB
-sudo apt update             #actualizamos listado de repositorios
-```
-
-### 6.2 Instalar MongoDB
-```bash
-sudo apt install -y mongodb-org
+sudo apt update                     # Actualizamos listado de repositorios
+sudo apt install -y mongodb-org     # Instalamos mongo
 mongod --version                    # Verificar servidor
 sudo dpkg -l mongodb-database-tools # Verificar tools
 sudo systemctl start mongod         # Iniciar MongoDB
@@ -109,27 +122,28 @@ sudo systemctl enable mongod        # Habilitar MongoDB al arranque
 
 ---
 
-## 7. Instalar PM2
+## 7. PM2
 
-### 7.1 Instalar PM2 globalmente
-```bash
-npm install pm2@latest -g  # Instalar PM2
-pm2 --version             # Verificar versión
-```
+Project Manager 2 sirve para gestionar y mantener los proyectos node activos (corriendo) en el sistema
 
-### 7.2 Comandos básicos
 ```bash
+npm install pm2@latest -g         # Instalar PM2
+pm2 --version                     # Verificar versión
+#
+#
+#comandos comunes de pm2
 pm2 list                          # Lista procesos activos
 pm2 start {src_index.js}          # Inicia un archivo Node
 pm2 start {src_index} --name NAME # Inicia proyecto con nombre
-pm2 save                          # Guarda configuración al reiniciar sistema
+pm2 save                          # Guarda configuración al reiniciar
 pm2 monit                         # Monitorea aplicaciones
-pm2 logs {name}                   # Ver logs
+pm2 logs {name}                   # Ver logs 
 ```
 
----
+## 8. Git
 
-## 8. Instalar Git
+Controlador de versiones (de proyectos). Suele venir instalado en el SO
+
 ```bash
 sudo apt install git    # Instalar Git
 git --version           # Verificar versión
@@ -137,7 +151,10 @@ git --version           # Verificar versión
 
 ---
 
-## 9. Instalar Nginx (Proxy Reverso)
+## 9. Nginx
+
+Servidor HTTP que utilizamos como proxy reverso para exponer la aplicación node al exterior. También sirve como balanceador de carga
+
 ```bash
 sudo apt install nginx   # Instalar Nginx
 nginx -v                 # Verificar versión
@@ -145,35 +162,54 @@ nginx -v                 # Verificar versión
 
 ---
 
-## 10. Instalar Certbot (Let's Encrypt)
+## 10. Certbot (Let's Encrypt)
+
+Genera certificados SSL para el dominio. No es estrictamente necesario si se utiliza cloudflare, ya que CF emite certificados
+
 ```bash
 sudo apt install certbot python3-certbot-nginx  # Instalar Certbot
-certbot --version                              # Verificar versión
+certbot --version                               # Verificar versión
 ```
 
 ---
 
-## 11. Configurar UFW (Firewall)
+## 11. UFW (Firewall)
+
+Firewall para bloquear/habilitar puertos de comunicación
+
 ```bash
 sudo apt install ufw              # Instalar UFW
-sudo ufw allow ssh                # Permitir SSH
-sudo ufw allow http               # Permitir HTTP
-sudo ufw allow https              # Permitir HTTPS
-sudo ufw default deny incoming    # Bloqurea todo el trafico de ingreso (exepto los premitidos previamente)
-sudo ufw default allow outgoing
-sudo ufw enable                   # Habilitar Firewall
+ufw --version                     # Verificamos
+#
+#
+#comandos comunes de ufw
+sudo ufw app list                 # Muestra aplicaciones permitidas/bloqueadas
+sudo ufw status numbered          # Muestra las reglas de firewall
+sudo ufw {allow | deny} ssh       # Permitir/bloquea SSH
+sudo ufw {allow | deny} http      # Permitir/bloquea HTTP
+sudo ufw {allow | deny} 33        # Permitir/bloquea el puerto 33
+#
+#
+#reglas comunes
+sudo ufw allow ssh
+sudo ufw allow http
+sudo ufw allow https
+sudo ufw default deny incoming #bloquea todo el trafico entrante
+sudo ufw default allow outgoing #bloquea todo el trafico saliente
 ```
 
 ---
 
-## 12. Instalar Fail2Ban (Protección contra fuerza bruta)
+## 12. Fail2Ban
+
+Proteje contra ataques de fuerza bruta
+
 ```bash
 sudo apt install fail2ban        #instalamos
 sudo systemctl status fail2ban   #verificamos instalacion
-
 ```
 
-### Configuración:
+### 12.1 Configuración:
 ```bash
 sudo vi /etc/fail2ban/jail.local   #editamos/creamos el archivo de configuracion
 ```
@@ -190,6 +226,7 @@ banaction = ufw    #accion a tomar (ufw = bloquea IP)
 enabled = true    #habilita proteccion a ssh
 ```
 
+### 12.2 Iniciamos el servicio:
 ```bash
 sudo systemctl start fail2ban   #iniciamos el servicio
 sudo systemctl enable fail2ban  #lo asignamos al inicio del sistema
@@ -217,24 +254,31 @@ port: 3000
 
 
 ### 1. Clonar repositorio
+
+En caso de ser un repositorio privado hay que generar un token desde github/settings y asignarle permisos al repositorio
+
 ```bash
-cd /var/www
+cd /var/www #vamos al directorio donde se deberian almacenar los proyectos
+
+#clonamos el repositorio
+git clone https://github.com/user/repo.git # para repositorios publicos
+
 # Reemplazar TOKEN y URL_REPO con tus valores
-git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git
+git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git # para repositorios privados
 ```
 
 ### 2. Instalar dependencias y configurar entorno
 ```bash
-cd mateflix
-npm i
-cp .env_example .env
-nano .env   # Editar variables
+cd mateflix           # ingresamos al directorio
+npm i                 # instalamos dependencias
+cp .env_example .env  # copiamos el archivo de ejemplo
+nano .env             # Editar variables
 ```
 
 ### 3. Configurar PM2
 ```bash
 pm2 start {src_index} --name mateflix
-pm2 save
+pm2 save  #para auto-start
 ```
 
 ### 4. Configurar Nginx
@@ -265,8 +309,8 @@ server {
 ```
 
 ```bash
-#creamos el enlace simbolico (acceso directo)
-sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/
+
+sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/  #creamos el enlace simbolico (acceso directo)
 sudo nginx -t                     # Verificar configuración
 sudo systemctl restart nginx      # reiniciamos nginx
 sudo certbot --nginx -d mateflix.app # Generamos los certificados (no es estrictamente necesario si trabajamos con cloudflare ya que dicho servicio los provee)
@@ -280,7 +324,7 @@ sudo certbot --nginx -d mateflix.app # Generamos los certificados (no es estrict
     - Registro `A` para el dominio.
     - Registros `cname` para subdominio:
       - Nombre: `www`
-      - Valor: Dirección IP de tu servidor
+      - Valor: `mateflix.app` #dominio ó dirección IP del servidor
       - TTL: Auto
 
 3. Activar **SSL/TLS** en modo "Flexible" o "Full".
