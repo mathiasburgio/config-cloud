@@ -32,7 +32,7 @@ systemctl {comando} {servicio}  # Acciones en un servicio (start, enable, etc.)
 
 ---
 
-## 1.2 Crear un usuario y asignar permisos
+### 1.2 Crear un usuario y asignar permisos
 
 Importante evitar ejecutar todo como root para mas seguridad
 
@@ -48,7 +48,7 @@ su nodeuser                         # Iniciar sesión con el nuevo usuario
 
 ---
 
-## 1.3. Configurar teclado
+### 1.3. Configurar teclado
 
 En algunos casos la configuración de distribución de teclado no es la correcta y dificulta el escribir caracteres especiales (símbolos)
 
@@ -69,7 +69,7 @@ sudo systemctl restart ssh       # Reiniciar servicio SSH
 
 ---
 
-## 3. Instalar cURL
+## 3. cURL
 
 Sirve para descargar software desde la consola
 
@@ -134,7 +134,7 @@ sudo systemctl enable mongod        # Habilitar MongoDB al arranque
 
 ## 7. PM2
 
-Project Manager 2 sirve para gestionar y mantener los proyectos node activos (corriendo) en el sistema
+pm2 sirve para gestionar y mantener los proyectos node activos (corriendo) en el sistema
 
 ```bash
 npm install pm2@latest -g         # Instalar PM2
@@ -247,7 +247,7 @@ sudo systemctl enable fail2ban  # Asignamos al inicio del sistema
 
 ---
 
-## Poner en funcionamiento una aplicación
+# Poner en funcionamiento una aplicación
 ```
 Para este ejemplo vamos a configurar
 appName: mateflix
@@ -256,52 +256,54 @@ port: 3000
 ```
 
 
-### 1. Clonar repositorio
+## 1. Clonar repositorio
 
 En caso de ser un repositorio privado hay que generar un token desde github/settings y asignarle permisos al repositorio
 
 ```bash
 cd /var/www #vamos al directorio donde se deberian almacenar los proyectos
 
-#clonamos el repositorio
-git clone https://github.com/user/repo.git # para repositorios publicos
+# Clonamos el repositorio
+git clone https://github.com/user/repo.git # Para repositorios publicos
 
 # Reemplazar TOKEN y URL_REPO con tus valores
-git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git # para repositorios privados
+git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git # Para repositorios privados
 ```
 
-### 2. Instalar dependencias y configurar entorno
+## 2. Instalar dependencias y configurar entorno
 ```bash
 cd mateflix           # ingresamos al directorio
 npm i                 # instalamos dependencias
-cp .env_example .env  # copiamos el archivo de ejemplo
-nano .env             # Editar variables
+cp .env_example .env  # copiamos el archivo de de variables de entorno de ejemplo
+nano .env             # Editar variables de entorno
 ```
 
-### 3. Configurar PM2
+## 3. Configurar PM2
 ```bash
-pm2 start {src_index} --name mateflix
-pm2 save  #para auto-start
+pm2 start {main.js|server.js} --name mateflix  # Iniciamos el proyecto
+pm2 save                                       # Habilitamos el auto-inicio
 ```
 
-### 4. Configurar Nginx
+## 4. Configurar Nginx
 ```bash
-sudo nano /etc/nginx/sites-available/mateflix.app   #nombre del archivo = dominio
+cd /etc/nginx/sites-available                       # Nos movemos a la carpeta de gestion de sitios de nginx
+sudo nano mateflix.app                              # Nombre del archivo = dominio
+#sudo nano /etc/nginx/sites-available/mateflix.app  #igual que lo anterior
 ```
 
 **Contenido:**
 ```nginx
 server {
     listen 80;
-    server_name mateflix.app www.mateflix.app;
+    server_name mateflix.app www.mateflix.app; #dominio y subdominios
     location / {
-        proxy_pass http://localhost:3000;  #agregar aqui el puerto local
-        proxy_http_version 1.1;                  #para soportar web sockets
-        proxy_set_header Upgrade $http_upgrade;  #para soportar web sockets
-        proxy_set_header Connection 'upgrade';   #para soportar web sockets
-        proxy_set_header Host $host;   #para cuando se trabajan con multiples host / servidores virtuales
-        proxy_cache_bypass $http_upgrade;  #para q las conexiones con websocket no trabajen sobre el cache
-        client_max_body_size 50M;  #tamaño maximo de datos
+        proxy_pass http://localhost:3000;        # Puerto local aquí
+        proxy_http_version 1.1;                  # Para web sockets
+        proxy_set_header Upgrade $http_upgrade;  # Para web sockets
+        proxy_set_header Connection 'upgrade';   # Para web sockets
+        proxy_set_header Host $host;             # Para cuando se trabajan con multiples host / servidores virtuales
+        proxy_cache_bypass $http_upgrade;        # Para q las conexiones con websocket no trabajen sobre el cache
+        client_max_body_size 50M;                # Tamaño máximo de datos
 
         # Ajustar los tiempos de espera para evitar timeouts
         proxy_read_timeout 90s;
@@ -311,11 +313,11 @@ server {
 }
 ```
 
+### 4.1 Terminamos de configurar Nginx
 ```bash
-
-sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/  #creamos el enlace simbolico (acceso directo)
-sudo nginx -t                     # Verificar configuración
-sudo systemctl restart nginx      # reiniciamos nginx
+sudo ln -s /etc/nginx/sites-available/mateflix.app /etc/nginx/sites-enabled/  # Creamos el enlace simbólico (acceso directo)
+sudo nginx -t                        # Verificar configuración
+sudo systemctl restart nginx         # Reiniciamos nginx
 sudo certbot --nginx -d mateflix.app # Generamos los certificados (no es estrictamente necesario si trabajamos con cloudflare ya que dicho servicio los provee)
 ```
 
