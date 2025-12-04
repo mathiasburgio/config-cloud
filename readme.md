@@ -139,6 +139,7 @@ pm2 sirve para gestionar y mantener los proyectos node activos (corriendo) en el
 ```bash
 npm install pm2@latest -g         # Instalar PM2
 pm2 --version                     # Verificar versión
+pm2 startup systemd               # Para que al iniciarse prenda todos los procesos
 #
 #
 #comandos comunes de pm2
