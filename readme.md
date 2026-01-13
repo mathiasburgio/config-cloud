@@ -146,6 +146,7 @@ pm2 startup systemd               # Para que al iniciarse prenda todos los proce
 pm2 list                          # Lista procesos activos
 pm2 start {src_index.js}          # Ejecuta un un proyecto Node
 pm2 start {src_index} --name {name} # Ejecuta un proyecto y le asigna un nombre
+pm2 start {src_index} --name {name} --max-memory-restart 512M # Comando que salva de leaks
 pm2 save                          # Guarda configuración al reiniciar
 pm2 {stop|restart|start} {name}   # Ejecuta un cambio de estado
 pm2 monit                         # Monitorea aplicaciones
@@ -288,7 +289,7 @@ nano .env             # Editar variables de entorno
 
 ## 3. Configurar PM2
 ```bash
-pm2 start {main.js|server.js} --name mateflix  # Iniciamos el proyecto
+pm2 start {main.js|server.js} --name mateflix --max-memory-restart 512M  # Iniciamos el proyecto
 pm2 save                                       # Habilitamos el auto-inicio
 ```
 
