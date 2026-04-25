@@ -1,0 +1,8 @@
+Agregar instalacion de mongo para ubuntu 24
+Agregar instalacion de redis
+Agregar inicio de pm2 con sistema
+Agregar configuracion full de cloudflare con ssl
+Agregar expliacion completa de usuarios y por q no usar el usuario root
+Agregar explicacion nginx/cloudflare segun saboresYA
+Agregar explicacion de conexion por SSH a hosting
+Requerir reinicio
