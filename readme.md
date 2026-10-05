@@ -147,17 +147,33 @@ curl --version           # Verificar instalación
 
 ---
 
-## 4. nvm, node.js y npm
+## 4. Node.js y npm
 
-NVM permite gestionar distintas versiones de Node.js. Ejecutar estos pasos como `{software}` y sin `sudo`: NVM instala Node.js para el usuario actual.
+Para este servidor conviene partir de una **instalación limpia de Node.js a nivel del sistema**, de modo que Node.js y npm estén disponibles para todos los usuarios. Elegir esta opción o NVM según lo que necesiten las aplicaciones.
 
-### 4.1 NVM (Node Version Manager)
+### 4.1 Instalación para todos los usuarios (recomendada)
+
+Ejecutar una sola vez desde la cuenta `{admin}`:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v # Verificar Node.js
+npm -v  # Verificar npm
+```
+
+**Nota:** El sufijo `_22.x` puede variar según la versión que se desee instalar; por ejemplo, `setup_24.x` instala Node.js 24. Elegir una versión compatible con la aplicación y disponible en [NodeSource](https://github.com/nodesource/distributions). Después, cada usuario puede ejecutar `node` y `npm` sin `sudo`.
+
+### 4.2 Alternativa: NVM (Node Version Manager)
+
+[NVM](https://github.com/nvm-sh/nvm) permite gestionar distintas versiones de Node.js, pero instala Node.js solo para el usuario actual. Es útil si las aplicaciones necesitan versiones diferentes. Ejecutar estos pasos como `{software}` y sin `sudo`, repitiéndolos para cada usuario que lo necesite:
+
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
 source ~/.bashrc
 ```
 
-### 4.2 Node.js
+### 4.3 Instalar Node.js con NVM
 ```bash
 nvm install 26   # Instalar Node.js 26
 node -v          # Verificar Node.js
@@ -199,6 +215,117 @@ sudo systemctl enable mongod        # Habilitar MongoDB al arranque
 
 **Nota:** A día de hoy (30-sept-2026), MongoDB no está oficialmente soportado en Ubuntu 26.
 
+### 6.1 Replica set para utilizar transacciones
+
+MongoDB necesita un **replica set** para usar transacciones entre varios documentos. Este ejemplo configura `rs0` con **un solo nodo**, con la aplicación y MongoDB en el mismo servidor. Habilita transacciones, pero no ofrece redundancia si el servidor falla. [Referencia sobre transacciones](https://www.mongodb.com/docs/v8.0/core/transactions-production-consideration/).
+
+Estos pasos parten de la instalación anterior, sin usuarios de MongoDB ni replica set configurados. Si ya hay datos, hacer un backup antes; el reinicio interrumpe las conexiones. Si ya existen usuarios, usar el administrador de MongoDB para inicializar el replica set y crear el usuario de aplicación, omitiendo la creación del primer administrador.
+
+Desde la cuenta `{admin}` de Ubuntu, crear una clave interna para el replica set. Es distinta de las contraseñas de los usuarios; generarla una sola vez y no compartirla:
+
+```bash
+sudo apt install -y openssl
+openssl rand -base64 756 | sudo tee /etc/mongodb-keyfile > /dev/null
+sudo chown mongodb:mongodb /etc/mongodb-keyfile
+sudo chmod 400 /etc/mongodb-keyfile
+sudo nano /etc/mongod.conf
+```
+
+En `/etc/mongod.conf`, agregar o modificar estos bloques, sin duplicarlos ni borrar el resto de la configuración. Usar espacios para la indentación:
+
+```yaml
+net:
+  port: 27017
+  bindIp: localhost
+
+replication:
+  replSetName: rs0
+
+security:
+  authorization: enabled
+  keyFile: /etc/mongodb-keyfile
+```
+
+Mantener MongoDB accesible solo desde el servidor; no abrir el puerto `27017` en los firewalls. El `keyFile` permite la autenticación interna del replica set. [Configuración oficial](https://www.mongodb.com/docs/v8.0/tutorial/deploy-replica-set-with-keyfile-access-control/).
+
+Reiniciar MongoDB y abrir su consola desde el mismo servidor:
+
+```bash
+sudo systemctl restart mongod
+sudo systemctl status mongod
+mongosh "mongodb://localhost:27017/?directConnection=true"
+```
+
+Dentro de `mongosh`, inicializar el replica set **una sola vez**:
+
+```javascript
+rs.initiate({
+  _id: "rs0",
+  members: [{ _id: 0, host: "localhost:27017" }]
+})
+```
+
+Esperar unos segundos y ejecutar `db.hello().isWritablePrimary`. Continuar cuando devuelva `true` (el nodo ya es `PRIMARY`).
+
+### 6.2 Crear usuarios de MongoDB
+
+En esa misma consola, crear primero el administrador de MongoDB. La conexión local permite hacerlo sin autenticarse únicamente mientras no existan usuarios:
+
+```javascript
+db.getSiblingDB("admin").createUser({
+  user: "mongo_admin",
+  pwd: passwordPrompt(),
+  roles: [{ role: "root", db: "admin" }]
+})
+exit
+```
+
+Elegir una contraseña larga y única cuando se solicite. `mongo_admin` administra MongoDB; es una cuenta distinta del usuario de Ubuntu y no debe usarse en el proyecto.
+
+Volver a conectarse, ahora con el administrador (la contraseña se pide en consola):
+
+```bash
+mongosh "mongodb://localhost:27017/admin?replicaSet=rs0" --username mongo_admin --authenticationDatabase admin --password
+```
+
+Dentro de `mongosh`, comprobar el replica set y crear un usuario exclusivo para Mateflix:
+
+```javascript
+rs.status() // Debe mostrar el nodo como PRIMARY
+db.getSiblingDB("mateflix").createUser({
+  user: "mateflix_app",
+  pwd: passwordPrompt(),
+  roles: [{ role: "readWrite", db: "mateflix" }]
+})
+exit
+```
+
+Usar otra contraseña para `mateflix_app`. Este usuario puede leer y escribir solo en `mateflix`; repetir con nombres diferentes para cada proyecto. [Creación de usuarios y contraseñas](https://www.mongodb.com/docs/v8.0/tutorial/configure-scram-client-authentication/).
+
+### 6.3 Cadena de conexión del proyecto
+
+En el `.env` de la aplicación, usar la variable que lea el proyecto (por ejemplo, `MONGODB_URI`):
+
+```dotenv
+MONGODB_URI="mongodb://mateflix_app:CONTRASENA_CODIFICADA@localhost:27017/mateflix?authSource=mateflix&replicaSet=rs0"
+```
+
+- `mateflix_app`: usuario creado para la aplicación.
+- `CONTRASENA_CODIFICADA`: reemplazar por su contraseña, codificando caracteres especiales para una URL; por ejemplo, `@` se escribe `%40` y `#` se escribe `%23`.
+- `/mateflix`: base de datos que usa el proyecto.
+- `authSource=mateflix`: base donde se creó el usuario, no `admin` en este ejemplo.
+- `replicaSet=rs0`: debe coincidir con el nombre configurado en MongoDB.
+
+Guardar el `.env` fuera de Git. Esta dirección `localhost` sirve para una aplicación que corre en el mismo servidor, fuera de Docker. [Formato de conexión](https://www.mongodb.com/docs/manual/reference/connection-string/) y [opciones de conexión](https://www.mongodb.com/docs/manual/reference/connection-string-options/).
+
+Probar el acceso con el usuario de aplicación, sin escribir la contraseña en el comando:
+
+```bash
+mongosh "mongodb://localhost:27017/mateflix?authSource=mateflix&replicaSet=rs0" --username mateflix_app --password
+```
+
+Dentro de `mongosh`, ejecutar `db.runCommand({ ping: 1 })` (debe devolver `ok: 1`) y salir con `exit`. Si la aplicación ya estaba corriendo, reiniciarla como su usuario: `pm2 restart mateflix --update-env`. El proyecto debe cargar la nueva URI y usar sesiones/transacciones en su código; configurar el replica set no convierte automáticamente las operaciones en transacciones.
+
 ---
 
 ## 7. Redis
@@ -218,13 +345,26 @@ redis-cli ping                            # Verificar que responde: debe mostrar
 
 pm2 sirve para gestionar y mantener los proyectos node activos (corriendo) en el sistema
 
-Ejecutar la instalación y los comandos de PM2 como `{software}`, sin `sudo`, para que PM2 administre la aplicación con ese usuario.
+**Importante:** Con la instalación de Node.js para todos los usuarios, PM2 debe instalarse una sola vez desde el usuario administrativo `{admin}`, que tiene permisos de `sudo`. Así el comando `pm2` queda disponible también para los demás usuarios del servidor:
 
 ```bash
-npm install pm2@latest -g         # Instalar PM2 globalmente para el usuario actual, sin sudo
+sudo npm install pm2@latest -g # Dejar el comando pm2 disponible para todos los usuarios
+```
+
+Si se eligió NVM, instalar PM2 como cada usuario `{software}`, sin `sudo`:
+
+```bash
+npm install pm2@latest -g # Instalar PM2 para el usuario actual
+```
+
+En ambos casos, ejecutar los siguientes comandos como `{software}`, sin `sudo`, para que PM2 administre la aplicación con ese usuario. El comando administrativo que muestre `pm2 startup` debe ejecutarse desde la cuenta `{admin}`.
+
+**Rotación de logs:** `pm2-logrotate` debe instalarse con `pm2 install pm2-logrotate` en cada usuario de aplicación, sin `sudo`. El comando `sudo npm install -g pm2-logrotate` instala el paquete globalmente, pero no activa el módulo en el PM2 de los demás usuarios. [Instrucciones oficiales](https://github.com/keymetrics/pm2-logrotate#install).
+
+```bash
 pm2 --version                     # Verificar versión
-pm2 startup systemd               # Configurar inicio al reiniciar; ejecutar el comando sudo que PM2 muestre
-pm2 install pm2-logrotate         # Instala el módulo que rota los logs de aplicaciones administradas por PM2
+pm2 startup systemd               # Configurar inicio al reiniciar; copiar el comando sudo para ejecutarlo como {admin}
+pm2 install pm2-logrotate         # Repetir como cada usuario de aplicación, sin sudo
 pm2 conf pm2-logrotate            # Muestra la configuración actual del módulo
 pm2 set pm2-logrotate:max_size 10M # Rota un log cuando supera 10 MB
 pm2 set pm2-logrotate:retain 7     # Conserva hasta 7 logs rotados, además del log actual
@@ -406,6 +546,8 @@ npm i                 # instalamos dependencias
 cp .env_example .env  # copiamos el archivo de de variables de entorno de ejemplo
 nano .env             # Editar variables de entorno
 ```
+
+Si el proyecto usa MongoDB, configurar en `.env` la [cadena de conexión con usuario y replica set del punto 6.3](#63-cadena-de-conexión-del-proyecto).
 
 ## 3. Configurar PM2
 ```bash
