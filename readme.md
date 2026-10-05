@@ -215,48 +215,84 @@ sudo systemctl enable mongod        # Habilitar MongoDB al arranque
 
 **Nota:** A día de hoy (30-sept-2026), MongoDB no está oficialmente soportado en Ubuntu 26.
 
-### 6.1 Replica set para utilizar transacciones
+### 6.1 Replica set local de un solo nodo para transacciones
 
-MongoDB necesita un **replica set** para usar transacciones entre varios documentos. Este ejemplo configura `rs0` con **un solo nodo**, con la aplicación y MongoDB en el mismo servidor. Habilita transacciones, pero no ofrece redundancia si el servidor falla. [Referencia sobre transacciones](https://www.mongodb.com/docs/v8.0/core/transactions-production-consideration/).
+Para proyectos chicos que corren en una sola PC o servidor, usar **una única instancia de MongoDB** como replica set `rs0`. Las aplicaciones se conectan localmente con **usuario y contraseña**. Esta configuración habilita transacciones entre documentos, pero no ofrece redundancia si el servidor falla. [Referencia sobre transacciones](https://www.mongodb.com/docs/v8.0/core/transactions-production-consideration/).
 
-Estos pasos parten de la instalación anterior, sin usuarios de MongoDB ni replica set configurados. Si ya hay datos, hacer un backup antes; el reinicio interrumpe las conexiones. Si ya existen usuarios, usar el administrador de MongoDB para inicializar el replica set y crear el usuario de aplicación, omitiendo la creación del primer administrador.
+Estos pasos parten de la instalación anterior, sin autenticación ni replica set configurados. Si ya hay datos, hacer un backup antes; el reinicio interrumpe las conexiones. Si ya existe un administrador de MongoDB, usar esa cuenta y omitir su creación.
 
-Desde la cuenta `{admin}` de Ubuntu, crear una clave interna para el replica set. Es distinta de las contraseñas de los usuarios; generarla una sola vez y no compartirla:
+**1. Crear primero el administrador de MongoDB.** Entrar desde el servidor:
+
+```bash
+mongosh
+```
+
+Dentro de `mongosh`:
+
+```javascript
+use admin
+db.createUser({
+  user: "mongo_admin",
+  pwd: passwordPrompt(),
+  roles: [{ role: "root", db: "admin" }]
+})
+exit
+```
+
+Elegir una contraseña larga y única cuando se solicite. `passwordPrompt()` evita escribirla en el historial. Esta cuenta administra MongoDB y no debe usarse en el proyecto.
+
+**2. Preparar el archivo interno de MongoDB.**
+
+**No se usan claves SSH para MongoDB.** El `keyFile` es un archivo interno que MongoDB requiere para combinar replica set y autenticación, incluso con un solo nodo. Se queda en esta PC; las aplicaciones no lo usan para iniciar sesión. [Referencia de autenticación del replica set](https://www.mongodb.com/docs/manual/tutorial/convert-standalone-to-replica-set/).
+
+Desde la cuenta `{admin}` de Ubuntu, generar ese archivo una sola vez (si ya existe, conservarlo):
 
 ```bash
 sudo apt install -y openssl
-openssl rand -base64 756 | sudo tee /etc/mongodb-keyfile > /dev/null
+if ! sudo test -e /etc/mongodb-keyfile; then
+  openssl rand -base64 756 | sudo tee /etc/mongodb-keyfile > /dev/null
+fi
 sudo chown mongodb:mongodb /etc/mongodb-keyfile
 sudo chmod 400 /etc/mongodb-keyfile
+```
+
+**3. Activar autenticación y replica set.** Abrir la configuración desde la cuenta `{admin}` de Ubuntu:
+
+```bash
 sudo nano /etc/mongod.conf
 ```
 
-En `/etc/mongod.conf`, agregar o modificar estos bloques, sin duplicarlos ni borrar el resto de la configuración. Usar espacios para la indentación:
+Agregar o modificar estos bloques, sin duplicarlos ni borrar el resto de la configuración. Usar espacios para la indentación:
 
 ```yaml
 net:
   port: 27017
-  bindIp: localhost
+  bindIp: localhost # Solo conexiones desde esta misma PC
 
 replication:
   replSetName: rs0
 
 security:
-  authorization: enabled
+  authorization: enabled # Login con usuarios de MongoDB
   keyFile: /etc/mongodb-keyfile
 ```
 
-Mantener MongoDB accesible solo desde el servidor; no abrir el puerto `27017` en los firewalls. El `keyFile` permite la autenticación interna del replica set. [Configuración oficial](https://www.mongodb.com/docs/v8.0/tutorial/deploy-replica-set-with-keyfile-access-control/).
+Con `bindIp: localhost`, MongoDB acepta conexiones únicamente desde esta PC. No cambiarlo a `0.0.0.0` ni abrir el puerto `27017` en los firewalls. [Configuración oficial](https://www.mongodb.com/docs/v8.0/tutorial/deploy-replica-set-with-keyfile-access-control/).
 
-Reiniciar MongoDB y abrir su consola desde el mismo servidor:
+**4. Reiniciar MongoDB:**
 
 ```bash
 sudo systemctl restart mongod
 sudo systemctl status mongod
-mongosh "mongodb://localhost:27017/?directConnection=true"
 ```
 
-Dentro de `mongosh`, inicializar el replica set **una sola vez**:
+**5. Ingresar con el administrador e inicializar el replica set.** La contraseña se pide en consola. `directConnection=true` permite conectarse al nodo antes de inicializarlo:
+
+```bash
+mongosh "mongodb://localhost:27017/admin?directConnection=true" --username mongo_admin --authenticationDatabase admin --password
+```
+
+Dentro de `mongosh`, ejecutar **una sola vez**:
 
 ```javascript
 rs.initiate({
@@ -265,30 +301,11 @@ rs.initiate({
 })
 ```
 
-Esperar unos segundos y ejecutar `db.hello().isWritablePrimary`. Continuar cuando devuelva `true` (el nodo ya es `PRIMARY`).
+Esperar unos segundos y ejecutar `db.hello().isWritablePrimary`. Continuar cuando devuelva `true` (el nodo ya es `PRIMARY`). Mantener abierta esta consola para crear el usuario de aplicación.
 
-### 6.2 Crear usuarios de MongoDB
+### 6.2 Crear el usuario de la aplicación
 
-En esa misma consola, crear primero el administrador de MongoDB. La conexión local permite hacerlo sin autenticarse únicamente mientras no existan usuarios:
-
-```javascript
-db.getSiblingDB("admin").createUser({
-  user: "mongo_admin",
-  pwd: passwordPrompt(),
-  roles: [{ role: "root", db: "admin" }]
-})
-exit
-```
-
-Elegir una contraseña larga y única cuando se solicite. `mongo_admin` administra MongoDB; es una cuenta distinta del usuario de Ubuntu y no debe usarse en el proyecto.
-
-Volver a conectarse, ahora con el administrador (la contraseña se pide en consola):
-
-```bash
-mongosh "mongodb://localhost:27017/admin?replicaSet=rs0" --username mongo_admin --authenticationDatabase admin --password
-```
-
-Dentro de `mongosh`, comprobar el replica set y crear un usuario exclusivo para Mateflix:
+En la misma consola, autenticada como `mongo_admin`, comprobar el replica set y crear un usuario exclusivo para Mateflix:
 
 ```javascript
 rs.status() // Debe mostrar el nodo como PRIMARY
@@ -316,7 +333,7 @@ MONGODB_URI="mongodb://mateflix_app:CONTRASENA_CODIFICADA@localhost:27017/matefl
 - `authSource=mateflix`: base donde se creó el usuario, no `admin` en este ejemplo.
 - `replicaSet=rs0`: debe coincidir con el nombre configurado en MongoDB.
 
-Guardar el `.env` fuera de Git. Esta dirección `localhost` sirve para una aplicación que corre en el mismo servidor, fuera de Docker. [Formato de conexión](https://www.mongodb.com/docs/manual/reference/connection-string/) y [opciones de conexión](https://www.mongodb.com/docs/manual/reference/connection-string-options/).
+Guardar el `.env` fuera de Git. La aplicación debe correr en esta misma PC, fuera de Docker: `localhost` apunta al MongoDB local y el login usa `mateflix_app` y su contraseña. No agregar el `keyFile` ni claves SSH al proyecto. [Formato de conexión](https://www.mongodb.com/docs/manual/reference/connection-string/) y [opciones de conexión](https://www.mongodb.com/docs/manual/reference/connection-string-options/).
 
 Probar el acceso con el usuario de aplicación, sin escribir la contraseña en el comando:
 
