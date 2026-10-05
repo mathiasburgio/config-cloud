@@ -369,6 +369,14 @@ Para clonar un repositorio privado desde el servidor, configurar una **deploy ke
    cat ~/.ssh/id_ed25519.pub
    ```
 
+   La salida se ve similar a este ejemplo ficticio:
+
+   ```text
+   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB0123456789abcdefghijklmnopqrstuvwxyzABCDEF {usuario}@{servidor}
+   ```
+
+   Copiar toda la línea que muestra tu servidor, desde `ssh-ed25519` hasta `{usuario}@{servidor}`; no usar la clave del ejemplo.
+
    Copiar solo el archivo `.pub`. La clave privada (`id_ed25519`, sin `.pub`) queda en el servidor y no se comparte.
 
 3. **En GitHub:** repositorio Mateflix → **Settings → Deploy keys → Add deploy key**. Poner un título identificable (por ejemplo, `servidor-mateflix`), pegar la clave pública en **Key** y guardar con **Add key**. Dejar **Allow write access** desmarcado si solo se necesita clonar y hacer `git pull`.
