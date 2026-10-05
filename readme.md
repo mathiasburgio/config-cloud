@@ -352,17 +352,43 @@ port: 3000
 
 ## 1. Clonar repositorio
 
-En caso de ser un repositorio privado hay que generar un token desde github/settings y asignarle permisos al repositorio
+Para clonar un repositorio privado desde el servidor, configurar una **deploy key** de GitHub:
+
+1. **Crear la clave SSH en el servidor, como el usuario de la aplicación.** Desde la cuenta `{admin}`, cambiar de usuario y luego generar la clave sin `sudo`:
+
+   ```bash
+   sudo -iu {software} # Por ejemplo: sudo -iu mateflix
+   ssh-keygen -t ed25519
+   ```
+
+   Aceptar la ruta predeterminada (`~/.ssh/id_ed25519`) con Enter. Si ya existe una clave, no sobrescribirla. Podés protegerla con una contraseña (passphrase); Git la pedirá al usarla.
+
+2. **Mostrar y copiar la clave pública completa:**
+
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   ```
+
+   Copiar solo el archivo `.pub`. La clave privada (`id_ed25519`, sin `.pub`) queda en el servidor y no se comparte.
+
+3. **En GitHub:** repositorio Mateflix → **Settings → Deploy keys → Add deploy key**. Poner un título identificable (por ejemplo, `servidor-mateflix`), pegar la clave pública en **Key** y guardar con **Add key**. Dejar **Allow write access** desmarcado si solo se necesita clonar y hacer `git pull`.
+
+4. **Clonar en el servidor, con el mismo usuario que generó la clave:**
+
+   ```bash
+   cd /var/www/{software}
+   git clone git@github.com:tuusuario/mateflix.git .
+   ```
+
+   Reemplazar `tuusuario` por el usuario u organización dueño del repositorio. El punto final clona en la carpeta actual, que debe estar vacía; sin el punto, crea una subcarpeta `mateflix`.
+
+Repetir para cada usuario de aplicación y su repositorio: una deploy key da acceso a un solo repositorio y no se puede reutilizar en otros. [Referencia de GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys).
+
+Para un repositorio público, también se puede clonar por HTTPS sin configurar una clave:
 
 ```bash
-cd /var/www/{software} # Entrar a la carpeta asignada a la aplicación
-git clone <repo> .    # El punto clona aquí y evita crear /var/www/mateflix/mateflix
-
-# Ejemplo público:
+cd /var/www/{software}
 git clone https://github.com/usuario/repositorio.git .
-
-# Para un repositorio privado, autentícate con tu token; este valor es ficticio y no es real:
-git clone https://${TOKEN}:x-oauth-basic@${URL_REPO}.git .
 ```
 
 ## 2. Instalar dependencias y configurar entorno
