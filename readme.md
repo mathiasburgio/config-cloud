@@ -21,6 +21,18 @@ sudo apt-get update           # Actualizar listado de paquetes
 sudo apt-get upgrade          # Actualizar paquetes instalados
 ```
 
+### Zona horaria del servidor
+
+Comprobar la fecha, la hora y la zona horaria actual. Para configurar la zona horaria de Buenos Aires:
+
+```bash
+timedatectl                                 # Consultar fecha, hora y zona horaria
+sudo timedatectl set-timezone America/Argentina/Buenos_Aires
+timedatectl                                 # Confirmar el cambio
+```
+
+La zona horaria del servidor determina, entre otros, el horario de ejecución de las tareas de cron.
+
 ### Actualizaciones automáticas de seguridad
 
 Instalar el servicio si todavía no está instalado y revisar qué orígenes puede usar para las actualizaciones automáticas:
@@ -88,7 +100,7 @@ systemctl {comando} {servicio}  # Acciones en un servicio (start, enable, etc.)
 
 ### 1.2 Crear usuarios separados para administración y aplicaciones
 
-No se debe usar la cuenta `root` para trabajar normalmente. En su lugar, crear una cuenta administrativa personal (por ejemplo, `{admin}`) que pueda usar `sudo` para tareas del servidor. `{admin}` no es la cuenta root: `sudo` le permite elevar privilegios cuando hace falta.
+No se debe usar la cuenta `root` para trabajar normalmente. En su lugar, crear una cuenta administrativa personal (por ejemplo, `linuxuser`; reemplazar `{admin}` por el nombre elegido en toda la guía) que pueda usar `sudo` para tareas del servidor. `{admin}` no es la cuenta root: `sudo` le permite elevar privilegios cuando hace falta.
 
 ```bash
 sudo adduser {admin}                  # Crear la cuenta administrativa
@@ -99,11 +111,30 @@ Antes de deshabilitar el acceso SSH de root, iniciar sesión por SSH como `{admi
 
 Para cada aplicación, crear un usuario propio sin permisos de `sudo`. Por ejemplo, reemplazar `{software}` por el nombre de la aplicación (`mateflix`, `api`, etc.). Así cada servicio ejecutado por PM2 tiene su propia carpeta y sus archivos quedan aislados de los demás servicios.
 
+Crear la cuenta de aplicación sin contraseña y con `/usr/sbin/nologin` como shell. Ejecutar desde la cuenta administrativa `{admin}`:
+
 ```bash
-sudo adduser {software}                                  # Crear el usuario sin privilegios administrativos
+sudo adduser --disabled-password --gecos "" {software}  # Crear la cuenta sin contraseña ni preguntas de datos personales
+sudo usermod -s /usr/sbin/nologin {software}             # Impedir el inicio de una shell de login
 sudo mkdir -p /var/www/{software}                        # Crear su carpeta de trabajo
 sudo chown -R {software}:{software} /var/www/{software} # Asignar la carpeta al usuario de la aplicación
-sudo -iu {software}                                      # Cambiar a ese usuario para clonar e instalar la aplicación
+```
+
+Por ejemplo, para Mateflix, los dos primeros comandos son los siguientes; ejecutarlos solo si no se creó ya la cuenta con el bloque anterior. Si `mateflix` ya existe, omitir `adduser` y aplicar `usermod`:
+
+```bash
+sudo adduser --disabled-password --gecos "" mateflix
+sudo usermod -s /usr/sbin/nologin mateflix
+```
+
+`--disabled-password` evita asignar una contraseña al crear la cuenta; por sí solo no bloquea el acceso con claves SSH. `nologin` rechaza la shell de login y permite que los servicios sigan ejecutándose con esa cuenta. Mantener también la restricción `AllowUsers` del punto 2 para bloquear su acceso SSH al servidor. [Opciones de adduser](https://manpages.ubuntu.com/manpages/noble/man8/adduser.8.html) y [nologin](https://manpages.ubuntu.com/manpages/noble/man8/nologin.8.html).
+
+Para clonar, instalar dependencias y administrar PM2, abrir explícitamente Bash como el usuario de aplicación desde `{admin}`. Esto funciona aunque tenga `nologin`; los comandos dentro de esa shell se ejecutan como `{software}`:
+
+```bash
+sudo -u {software} -H /bin/bash # Abrir Bash con el usuario y HOME de la aplicación
+cd ~                           # Entrar en su carpeta personal
+# Ejecutar aquí los pasos de la aplicación; usar exit para volver a {admin}
 ```
 
 Ejecutar Node, PM2 y la aplicación como `{software}`, nunca como `root`. Usar la cuenta `{admin}` y `sudo` para administrar el sistema; no agregar `{software}` al grupo `sudo`.
@@ -121,15 +152,47 @@ sudo service keyboard-setup restart           # Reiniciar servicio de teclado
 
 ---
 
-## 2. Cambiar puerto default de SSH
-**Importante:** Primero crear `{admin}` y comprobar que puede conectarse por SSH y ejecutar `sudo`. Antes de cerrar el puerto 22, permitir el nuevo puerto tanto en UFW como en el firewall del proveedor cloud, configurar ese mismo puerto en SSH, y probar una conexión nueva como `{admin}`. Mantener abierta la sesión actual hasta confirmar que la nueva conexión funciona.
+## 2. Cambiar puerto default de SSH y restringir usuarios
+
+**Solo la cuenta administrativa elegida debe poder ingresar por SSH.** En esta guía, `{admin}` representa esa cuenta con permisos de `sudo` (por ejemplo, `linuxuser`). Los demás usuarios, incluidos `root` y los de aplicaciones como `mateflix`, deben quedar sin acceso SSH al servidor.
+
+**Importante:** Primero crear `{admin}` y comprobar que puede conectarse por SSH y ejecutar `sudo`. Antes de cerrar el puerto 22, permitir el nuevo puerto tanto en UFW como en el firewall del proveedor cloud. Mantener abierta la sesión actual hasta confirmar que la nueva conexión funciona.
 
 ```bash
 sudo ufw allow 222/tcp            # Permitir el nuevo puerto antes de cambiar SSH
-sudo nano /etc/ssh/sshd_config    # Configurar Port 222 y PermitRootLogin no
-sudo sshd -t                      # Verificar la sintaxis antes de aplicar los cambios
-sudo systemctl reload ssh         # Aplicar la configuración de SSH
-# Desde otra terminal, probar: ssh -p 222 {admin}@IP_DEL_SERVIDOR
+sudo nano /etc/ssh/sshd_config    # Configurar el puerto y los usuarios permitidos
+```
+
+Agregar o modificar estas directivas en la sección global, antes de cualquier bloque `Match`. El ejemplo usa `linuxuser`: reemplazarlo por el nombre real de `{admin}`, sin llaves ni comillas.
+
+```text
+Port 222
+PermitRootLogin no
+AllowUsers linuxuser
+```
+
+`AllowUsers` permite ingresar únicamente al usuario indicado, tanto con contraseña como con clave SSH. Tener permisos de `sudo` no habilita automáticamente SSH a otras cuentas. Los usuarios de aplicaciones siguen pudiendo ejecutar sus servicios y administrarse desde `{admin}` con `sudo -u {software} -H /bin/bash`. [Referencia de OpenSSH para Ubuntu 24.04](https://manpages.ubuntu.com/manpages/noble/man5/sshd_config.5.html).
+
+Revisar también `/etc/ssh/sshd_config.d/*.conf` y cualquier bloque `Match`: quitar de otras directivas `AllowUsers` los nombres o patrones que permitan entrar a otros usuarios, y corregir opciones que contradigan esta configuración. Las listas de `AllowUsers` se acumulan y los archivos incluidos pueden tener prioridad para otras opciones.
+
+Validar antes de aplicar. Si `sshd -t` muestra errores, corregirlos antes de recargar. La configuración efectiva debe mostrar el puerto `222`, `permitrootlogin no` y solo la cuenta elegida en `allowusers`:
+
+```bash
+sudo sshd -t                      # Verificar sintaxis; sin salida indica que no hay errores
+sudo sshd -T | grep -E '^(port|permitrootlogin|allowusers) '
+sudo systemctl reload ssh         # Aplicar después de validar
+```
+
+Desde otra terminal, abrir una conexión nueva y comprobar que `sudo` funciona:
+
+```bash
+ssh -p 222 {admin}@IP_DEL_SERVIDOR # Ejecutar desde tu PC con el nombre real del administrador
+sudo -v                           # Ejecutar dentro de la nueva sesión
+```
+
+Comprobar también que se rechaza el acceso SSH como `root` y como un usuario de aplicación existente. Solo después de confirmar estas pruebas, cerrar el puerto anterior desde el servidor:
+
+```bash
 sudo ufw delete allow 22          # Solo después de confirmar el acceso por el puerto nuevo
 sudo ufw deny 22/tcp              # Bloquear el puerto 22
 ```
@@ -227,19 +290,19 @@ Estos pasos parten de la instalación anterior, sin autenticación ni replica se
 mongosh
 ```
 
-Dentro de `mongosh`:
+Dentro de `mongosh`. En este ejemplo, `linuxuser` es el administrador de MongoDB; podés reemplazarlo por el nombre de tu usuario administrativo de Ubuntu o por `root`. Usar el mismo nombre no vincula las cuentas: el usuario y la contraseña de MongoDB se crean por separado. Usar el nombre elegido también en los comandos siguientes:
 
 ```javascript
 use admin
 db.createUser({
-  user: "mongo_admin",
+  user: "linuxuser",
   pwd: passwordPrompt(),
   roles: [{ role: "root", db: "admin" }]
 })
 exit
 ```
 
-Elegir una contraseña larga y única cuando se solicite. `passwordPrompt()` evita escribirla en el historial. Esta cuenta administra MongoDB y no debe usarse en el proyecto.
+Elegir una contraseña larga y única, distinta de la contraseña del usuario de Ubuntu y del nombre de usuario. Conviene usar solo letras sin acentos (`A-Z`, `a-z`), números (`0-9`) y guiones bajos (`_`) para evitar problemas al incluirla en una cadena de conexión. `passwordPrompt()` evita escribirla en el historial. Esta cuenta administra MongoDB y no debe usarse en el proyecto.
 
 **2. Preparar el archivo interno de MongoDB.**
 
@@ -289,7 +352,7 @@ sudo systemctl status mongod
 **5. Ingresar con el administrador e inicializar el replica set.** La contraseña se pide en consola. `directConnection=true` permite conectarse al nodo antes de inicializarlo:
 
 ```bash
-mongosh "mongodb://localhost:27017/admin?directConnection=true" --username mongo_admin --authenticationDatabase admin --password
+mongosh "mongodb://localhost:27017/admin?directConnection=true" --username linuxuser --authenticationDatabase admin --password
 ```
 
 Dentro de `mongosh`, ejecutar **una sola vez**:
@@ -305,7 +368,7 @@ Esperar unos segundos y ejecutar `db.hello().isWritablePrimary`. Continuar cuand
 
 ### 6.2 Crear el usuario de la aplicación
 
-En la misma consola, autenticada como `mongo_admin`, comprobar el replica set y crear un usuario exclusivo para Mateflix:
+En la misma consola, autenticada como `linuxuser`, comprobar el replica set y crear un usuario exclusivo para Mateflix:
 
 ```javascript
 rs.status() // Debe mostrar el nodo como PRIMARY
@@ -317,7 +380,7 @@ db.getSiblingDB("mateflix").createUser({
 exit
 ```
 
-Usar otra contraseña para `mateflix_app`. Este usuario puede leer y escribir solo en `mateflix`; repetir con nombres diferentes para cada proyecto. [Creación de usuarios y contraseñas](https://www.mongodb.com/docs/v8.0/tutorial/configure-scram-client-authentication/).
+Usar una contraseña larga y única para `mateflix_app`, distinta de la del administrador de MongoDB, de la del usuario de Ubuntu y del nombre de usuario. También conviene usar solo letras sin acentos, números y guiones bajos para facilitar su uso en la cadena de conexión. Este usuario puede leer y escribir solo en `mateflix`; repetir con nombres diferentes para cada proyecto. [Creación de usuarios y contraseñas](https://www.mongodb.com/docs/v8.0/tutorial/configure-scram-client-authentication/).
 
 ### 6.3 Cadena de conexión del proyecto
 
@@ -328,7 +391,7 @@ MONGODB_URI="mongodb://mateflix_app:CONTRASENA_CODIFICADA@localhost:27017/matefl
 ```
 
 - `mateflix_app`: usuario creado para la aplicación.
-- `CONTRASENA_CODIFICADA`: reemplazar por su contraseña, codificando caracteres especiales para una URL; por ejemplo, `@` se escribe `%40` y `#` se escribe `%23`.
+- `CONTRASENA_CODIFICADA`: reemplazar por la contraseña de `mateflix_app`. Si contiene solo letras sin acentos, números y guiones bajos, se puede escribir directamente. Si contiene caracteres especiales, codificarlos para una URL; por ejemplo, `@` se escribe `%40` y `#` se escribe `%23`.
 - `/mateflix`: base de datos que usa el proyecto.
 - `authSource=mateflix`: base donde se creó el usuario, no `admin` en este ejemplo.
 - `replicaSet=rs0`: debe coincidir con el nombre configurado en MongoDB.
@@ -514,7 +577,7 @@ Para clonar un repositorio privado desde el servidor, configurar una **deploy ke
 1. **Crear la clave SSH en el servidor, como el usuario de la aplicación.** Desde la cuenta `{admin}`, cambiar de usuario y luego generar la clave sin `sudo`:
 
    ```bash
-   sudo -iu {software} # Por ejemplo: sudo -iu mateflix
+   sudo -u {software} -H /bin/bash # Por ejemplo: sudo -u mateflix -H /bin/bash
    ssh-keygen -t ed25519
    ```
 
@@ -630,6 +693,62 @@ sudo certbot renew --dry-run         # Comprobar que la renovación automática 
 4. Configurar reglas de seguridad para proteger el servidor de accesos maliciosos.
 5. Revisar Analytics y verificar tráfico hacia tu servidor.
 
+### 5.1 Restringir HTTP y HTTPS a Cloudflare con UFW
+
+El script está habilitado. Se verificó el flujo completo con un UFW simulado: reglas IPv6 con y sin marcador, restauración de las redes faltantes, eliminación de redes antiguas, repetición y cancelación ante fallos. Estas pruebas no ejecutan un firewall real. El script conserva los permisos de otros puertos y las reglas de salida; solo elimina permisos de entrada de 80 y 443 que no correspondan a las redes actuales de Cloudflare.
+
+El archivo [`actualizar-ufw-cloudflare.sh`](actualizar-ufw-cloudflare.sh) contiene el script que se debe crear en el servidor. Descarga las redes IPv4 e IPv6 de Cloudflare, las habilita para los puertos TCP 80 y 443 y elimina permisos de entrada existentes para esos puertos que no correspondan a las redes actuales. Su objetivo es que HTTP y HTTPS lleguen al servidor a través del proxy de Cloudflare. Activar el proxy (nube naranja) en los registros DNS correspondientes antes de ejecutarlo.
+
+Las reglas creadas por el script llevan el comentario `Cloudflare`, visible como `# Cloudflare` al listar las reglas con `sudo ufw status numbered`. Al volver a agregar una regla que ya existe, UFW actualiza su comentario sin necesidad de borrarla.
+
+**Revisar antes de ejecutar:** UFW debe estar activo, con IPv6 habilitado y política de entrada `deny`; también deben estar instalados `curl` y `python3`. El script no cambia la política general ni configura otros servicios. Revisar `sudo ufw status numbered` y el firewall del proveedor, y mantener abierta la sesión SSH actual mientras se prueba una conexión nueva. Tener acceso a la consola del proveedor para recuperar el servidor si fuera necesario.
+
+El script valida la configuración de SSH y se cancela si un puerto declarado es 80 o 443. No agrega ni elimina reglas de SSH. Las reglas de SSH existentes y el firewall del proveedor siguen siendo responsabilidad del administrador. Si SSH escucha en un puerto distinto del declarado en `sshd -T` (por ejemplo, mediante activación por socket), verificarlo manualmente antes de ejecutar. Revisar la configuración y probar el acceso desde otra terminal antes de cerrar la sesión actual:
+
+```bash
+sudo sshd -T | grep '^port '
+sudo ss -ltnp
+sudo ufw status numbered
+# Desde otra terminal: ssh -p PUERTO {admin}@IP_DEL_SERVIDOR
+```
+
+El script agrega primero las redes actuales de Cloudflare y después elimina los permisos de entrada existentes para 80 y 443 que no coincidan. Se detiene si encuentra permisos de entrada generales, rangos o perfiles que no puede interpretar con seguridad; resolverlos manualmente antes de volver a ejecutarlo. Reglas `deny` anteriores pueden bloquear también a Cloudflare. Docker, reglas personalizadas de firewall o reglas de tráfico enrutado pueden eludir el filtrado habitual de UFW. Revisar esas vías y comprobar desde una red externa que la IP de origen no responda directamente en 80/443, mientras que el dominio con proxy sí funcione. El filtrado por IP de Cloudflare no identifica por sí solo la cuenta o zona de Cloudflare.
+
+1. **Crear el archivo en el servidor.** Abrir el enlace [`actualizar-ufw-cloudflare.sh`](actualizar-ufw-cloudflare.sh) de esta guía y copiar todo su contenido, desde `#!/bin/bash` hasta la última línea. En la terminal del servidor, abrir el archivo con Nano:
+
+   ```bash
+   sudo nano /var/www/actualizar-ufw-cloudflare.sh
+   ```
+
+   Pegar el contenido completo en Nano. Si el archivo ya tenía una versión anterior, reemplazar todo su contenido para evitar mezclar versiones. Guardar con **Ctrl+O**, confirmar el nombre con **Enter** y salir con **Ctrl+X**. Después asignar el archivo a root:
+
+   ```bash
+   sudo chown root:root /var/www/actualizar-ufw-cloudflare.sh
+   ```
+
+2. **Dar permisos solo a root y ejecutar:**
+
+   ```bash
+   sudo chmod 700 /var/www/actualizar-ufw-cloudflare.sh
+   sudo /var/www/actualizar-ufw-cloudflare.sh
+   ```
+
+   UFW aplica cada cambio inmediatamente: no hace falta reiniciarlo ni ejecutar `ufw reload`. Revisar la salida y `sudo ufw status numbered`, y probar tanto una conexión SSH nueva como el acceso web antes de cerrar la sesión actual. Un mensaje de error al analizar las reglas debe corregirse en el script; reiniciar UFW no lo resuelve.
+
+3. **Programar la actualización semanal en el cron de root:**
+
+   ```bash
+   sudo crontab -e
+   ```
+
+   Agregar esta línea. Se ejecuta los domingos a las 04:00 según la zona horaria del servidor y guarda la salida en `/var/log/cloudflare-ufw.log`:
+
+   ```cron
+   0 4 * * 0 /var/www/actualizar-ufw-cloudflare.sh >> /var/log/cloudflare-ufw.log 2>&1
+   ```
+
+   Comprobar la entrada con `sudo crontab -l` y revisar periódicamente el log con `sudo tail /var/log/cloudflare-ufw.log`.
+
 ---
 
 **Servidor configurado y aplicación en funcionamiento.** 🚀
@@ -658,6 +777,6 @@ sudo systemctl status mysql                 # Si se instaló MySQL
 Para verificar PM2, cambiar a cada usuario de aplicación y ejecutar `pm2 status` por separado. Cada usuario solo ve los procesos PM2 que ejecuta con su propia cuenta:
 
 ```bash
-sudo -iu {software}
+sudo -u {software} -H /bin/bash
 pm2 status                                  # Repetir para cada usuario/aplicación
 ```
